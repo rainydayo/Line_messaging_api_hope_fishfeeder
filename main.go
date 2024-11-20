@@ -1,4 +1,4 @@
-package handler
+package main
 
 import (
 	"context"
@@ -15,40 +15,37 @@ import (
 )
 
 var firebaseClient *db.Client
-var bot *linebot.Client
 
-// init runs once when the package is initialized
-func init() {
+func main() {
 	// Load environment variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Printf("Warning: .env file not found. Falling back to system environment variables.")
+		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	// Fetch credentials from environment variables
+	// Fetch credentials
 	lineChannelSecret := os.Getenv("LINE_CHANNEL_SECRET")
 	lineAccessToken := os.Getenv("LINE_CHANNEL_ACCESS_TOKEN")
 	firebaseCredentials := os.Getenv("FIREBASE_CREDENTIALS")
 	firebaseDatabaseURL := os.Getenv("FIREBASE_DATABASE_URL")
 
 	if lineChannelSecret == "" || lineAccessToken == "" || firebaseCredentials == "" || firebaseDatabaseURL == "" {
-		log.Fatal("Missing required environment variables")
+		log.Fatal("Missing required environment variables in .env file")
 	}
 
-	// Decode Firebase credentials from Base64
+	// Decode Firebase credentials
 	decodedCredentials, err := base64.StdEncoding.DecodeString(firebaseCredentials)
 	if err != nil {
 		log.Fatalf("Failed to decode Firebase credentials: %v", err)
 	}
 
-	// Create a temporary file for the decoded credentials
+	// Create temporary credentials file
 	tempFile, err := os.CreateTemp("", "firebase-credentials-*.json")
 	if err != nil {
 		log.Fatalf("Failed to create temporary file for Firebase credentials: %v", err)
 	}
-	defer os.Remove(tempFile.Name()) // Clean up the temp file after the program exits
+	defer os.Remove(tempFile.Name())
 
-	// Write the decoded credentials to the temp file
 	if _, err := tempFile.Write(decodedCredentials); err != nil {
 		log.Fatalf("Failed to write Firebase credentials to temporary file: %v", err)
 	}
@@ -60,46 +57,51 @@ func init() {
 		DatabaseURL: firebaseDatabaseURL,
 	}, opt)
 	if err != nil {
-		log.Fatalf("Error initializing Firebase app: %v\n", err)
+		log.Fatalf("Error initializing Firebase app: %v", err)
 	}
 
 	// Get Firebase database client
 	firebaseClient, err = app.DatabaseWithURL(ctx, firebaseDatabaseURL)
 	if err != nil {
-		log.Fatalf("Error initializing Firebase database client: %v\n", err)
+		log.Fatalf("Error initializing Firebase database client: %v", err)
 	}
 
 	// Initialize LINE Bot client
-	bot, err = linebot.New(lineChannelSecret, lineAccessToken)
+	bot, err := linebot.New(lineChannelSecret, lineAccessToken)
 	if err != nil {
-		log.Fatalf("Error initializing LINE bot: %v\n", err)
+		log.Fatalf("Error initializing LINE bot: %v", err)
 	}
-}
 
-// Handler is the exported function required by Vercel
-func Handler(w http.ResponseWriter, r *http.Request) {
-	events, err := bot.ParseRequest(r)
-	if err != nil {
-		if err == linebot.ErrInvalidSignature {
-			w.WriteHeader(http.StatusBadRequest)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+	// Start monitoring Firebase database
+	monitor := NewMonitor(bot, firebaseClient)
+	go monitor.StartMonitoring() // Run in a separate goroutine
+
+	// HTTP handler for LINE Bot
+	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		events, err := bot.ParseRequest(r)
+		if err != nil {
+			if err == linebot.ErrInvalidSignature {
+				w.WriteHeader(400)
+			} else {
+				w.WriteHeader(500)
+			}
+			return
 		}
-		return
-	}
 
-	for _, event := range events {
-		if event.Type == linebot.EventTypeMessage {
-			if message, ok := event.Message.(*linebot.TextMessage); ok {
-				handleMessage(bot, event.ReplyToken, message.Text)
+		for _, event := range events {
+			if event.Type == linebot.EventTypeMessage {
+				switch message := event.Message.(type) {
+				case *linebot.TextMessage:
+					handleMessage(bot, event.ReplyToken, message.Text)
+				}
 			}
 		}
-	}
+	})
 
-	w.WriteHeader(http.StatusOK)
+	log.Println("Starting server at :8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// handleMessage processes LINE bot messages
 func handleMessage(bot *linebot.Client, replyToken, message string) {
 	ctx := context.Background()
 
@@ -107,7 +109,6 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 	case "led on":
 		ref := firebaseClient.NewRef("led/state")
 		if err := ref.Set(ctx, 1); err != nil {
-			log.Printf("Error setting LED state: %v\n", err)
 			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn on LED")).Do()
 			return
 		}
@@ -116,7 +117,6 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 	case "led off":
 		ref := firebaseClient.NewRef("led/state")
 		if err := ref.Set(ctx, 0); err != nil {
-			log.Printf("Error setting LED state: %v\n", err)
 			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn off LED")).Do()
 			return
 		}
@@ -126,3 +126,5 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'led on' or 'led off' to control the LED.")).Do()
 	}
 }
+
+//ngrok http 8080
