@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -17,11 +17,12 @@ import (
 var firebaseClient *db.Client
 var bot *linebot.Client
 
+// init runs once when the package is initialized
 func init() {
-	// Load environment variables from .env file
+	// Load environment variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Printf("Warning: .env file not found. Falling back to system environment variables.")
 	}
 
 	// Fetch credentials from environment variables
@@ -31,7 +32,7 @@ func init() {
 	firebaseDatabaseURL := os.Getenv("FIREBASE_DATABASE_URL")
 
 	if lineChannelSecret == "" || lineAccessToken == "" || firebaseCredentials == "" || firebaseDatabaseURL == "" {
-		log.Fatal("Missing required environment variables in .env file")
+		log.Fatal("Missing required environment variables")
 	}
 
 	// Decode Firebase credentials from Base64
@@ -39,6 +40,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to decode Firebase credentials: %v", err)
 	}
+
 	// Create a temporary file for the decoded credentials
 	tempFile, err := os.CreateTemp("", "firebase-credentials-*.json")
 	if err != nil {
@@ -97,36 +99,30 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// handleMessage processes LINE bot messages
 func handleMessage(bot *linebot.Client, replyToken, message string) {
 	ctx := context.Background()
 
 	switch message {
 	case "led on":
-		log.Println("Received 'led on' command")
 		ref := firebaseClient.NewRef("led/state")
-		log.Println("Attempting to set LED state to ON at path: led/state")
 		if err := ref.Set(ctx, 1); err != nil {
 			log.Printf("Error setting LED state: %v\n", err)
 			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn on LED")).Do()
 			return
 		}
-		log.Println("Successfully set LED state to ON.")
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("LED is now ON")).Do()
 
 	case "led off":
-		log.Println("Received 'led off' command")
 		ref := firebaseClient.NewRef("led/state")
-		log.Println("Attempting to set LED state to OFF at path: led/state")
 		if err := ref.Set(ctx, 0); err != nil {
 			log.Printf("Error setting LED state: %v\n", err)
 			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn off LED")).Do()
 			return
 		}
-		log.Println("Successfully set LED state to OFF.")
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("LED is now OFF")).Do()
 
 	default:
-		log.Printf("Unknown message received: %s\n", message)
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'led on' or 'led off' to control the LED.")).Do()
 	}
 }
