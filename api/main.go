@@ -15,8 +15,9 @@ import (
 )
 
 var firebaseClient *db.Client
+var bot *linebot.Client
 
-func main() {
+func init() {
 	// Load environment variables from .env file
 	err := godotenv.Load()
 	if err != nil {
@@ -67,35 +68,33 @@ func main() {
 	}
 
 	// Initialize LINE Bot client
-	bot, err := linebot.New(lineChannelSecret, lineAccessToken)
+	bot, err = linebot.New(lineChannelSecret, lineAccessToken)
 	if err != nil {
 		log.Fatalf("Error initializing LINE bot: %v\n", err)
 	}
+}
 
-	// Set up HTTP handler
-	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		events, err := bot.ParseRequest(r)
-		if err != nil {
-			if err == linebot.ErrInvalidSignature {
-				w.WriteHeader(400)
-			} else {
-				w.WriteHeader(500)
-			}
-			return
+// Handler is the exported function required by Vercel
+func Handler(w http.ResponseWriter, r *http.Request) {
+	events, err := bot.ParseRequest(r)
+	if err != nil {
+		if err == linebot.ErrInvalidSignature {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
 		}
+		return
+	}
 
-		for _, event := range events {
-			if event.Type == linebot.EventTypeMessage {
-				switch message := event.Message.(type) {
-				case *linebot.TextMessage:
-					handleMessage(bot, event.ReplyToken, message.Text)
-				}
+	for _, event := range events {
+		if event.Type == linebot.EventTypeMessage {
+			if message, ok := event.Message.(*linebot.TextMessage); ok {
+				handleMessage(bot, event.ReplyToken, message.Text)
 			}
 		}
-	})
+	}
 
-	log.Println("Starting server at :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleMessage(bot *linebot.Client, replyToken, message string) {
@@ -131,5 +130,3 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'led on' or 'led off' to control the LED.")).Do()
 	}
 }
-
-//ngrok http 8080
