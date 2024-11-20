@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
 	"net/http"
 	"os"
@@ -32,9 +33,26 @@ func main() {
 		log.Fatal("Missing required environment variables in .env file")
 	}
 
+	// Decode Firebase credentials from Base64
+	decodedCredentials, err := base64.StdEncoding.DecodeString(firebaseCredentials)
+	if err != nil {
+		log.Fatalf("Failed to decode Firebase credentials: %v", err)
+	}
+	// Create a temporary file for the decoded credentials
+	tempFile, err := os.CreateTemp("", "firebase-credentials-*.json")
+	if err != nil {
+		log.Fatalf("Failed to create temporary file for Firebase credentials: %v", err)
+	}
+	defer os.Remove(tempFile.Name()) // Clean up the temp file after the program exits
+
+	// Write the decoded credentials to the temp file
+	if _, err := tempFile.Write(decodedCredentials); err != nil {
+		log.Fatalf("Failed to write Firebase credentials to temporary file: %v", err)
+	}
+
 	// Initialize Firebase app
 	ctx := context.Background()
-	opt := option.WithCredentialsFile(firebaseCredentials)
+	opt := option.WithCredentialsFile(tempFile.Name())
 	app, err := firebase.NewApp(ctx, &firebase.Config{
 		DatabaseURL: firebaseDatabaseURL,
 	}, opt)
