@@ -106,24 +106,16 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 	ctx := context.Background()
 
 	switch message {
-	case "led on":
-		ref := firebaseClient.NewRef("led/state")
+	case "feed":
+		ref := firebaseClient.NewRef("motor/state")
 		if err := ref.Set(ctx, 1); err != nil {
-			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn on LED")).Do()
+			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to activate the motor for feeding.")).Do()
 			return
 		}
-		bot.ReplyMessage(replyToken, linebot.NewTextMessage("LED is now ON")).Do()
-
-	case "led off":
-		ref := firebaseClient.NewRef("led/state")
-		if err := ref.Set(ctx, 0); err != nil {
-			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to turn off LED")).Do()
-			return
-		}
-		bot.ReplyMessage(replyToken, linebot.NewTextMessage("LED is now OFF")).Do()
+		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Feeding initiated!")).Do()
 
 	default:
-		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'led on' or 'led off' to control the LED.")).Do()
+		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'feed' to activate feeding.")).Do()
 	}
 }
 
