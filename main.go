@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -114,8 +115,20 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 		}
 		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Feeding initiated!")).Do()
 
+	case "Check food status":
+		ref := firebaseClient.NewRef("food/state")
+		var foodPercentage int
+		if err := ref.Get(ctx, &foodPercentage); err != nil {
+			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to retrieve food status.")).Do()
+			return
+		}
+
+		// Respond with the percentage
+		message := linebot.NewTextMessage(fmt.Sprintf("Current food level: %d%%", foodPercentage))
+		bot.ReplyMessage(replyToken, message).Do()
+
 	default:
-		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'feed' to activate feeding.")).Do()
+		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Send 'feed' to activate feeding or 'Check food status' to check the food level.")).Do()
 	}
 }
 
