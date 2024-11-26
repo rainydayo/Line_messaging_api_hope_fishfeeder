@@ -11,7 +11,7 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/db"
 
-	// "github.com/joho/godotenv"
+	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 	"google.golang.org/api/option"
 )
@@ -19,11 +19,11 @@ import (
 var firebaseClient *db.Client
 
 func main() {
-	// // Load environment variables
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatalf("Error loading .env file: %v", err)
-	// }
+	// Load environment variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 
 	// Fetch credentials
 	lineChannelSecret := os.Getenv("LINE_CHANNEL_SECRET")
@@ -109,12 +109,23 @@ func handleMessage(bot *linebot.Client, replyToken, message string) {
 
 	switch message {
 	case "feed":
-		ref := firebaseClient.NewRef("motor/state")
-		if err := ref.Set(ctx, 1); err != nil {
-			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to activate the motor for feeding.")).Do()
+		ref := firebaseClient.NewRef("food/state")
+		var foodPercentage int
+		if err := ref.Get(ctx, &foodPercentage); err != nil {
+			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to retrieve food status.")).Do()
 			return
 		}
-		bot.ReplyMessage(replyToken, linebot.NewTextMessage("Feeding initiated!")).Do()
+
+		ref = firebaseClient.NewRef("motor/state")
+		if foodPercentage > 30 {
+			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Too much food!!!")).Do()
+		} else {
+			if err := ref.Set(ctx, 1); err != nil {
+				bot.ReplyMessage(replyToken, linebot.NewTextMessage("Failed to activate the motor for feeding.")).Do()
+				return
+			}
+			bot.ReplyMessage(replyToken, linebot.NewTextMessage("Feeding initiated!")).Do()
+		}
 
 	case "Check food status":
 		ref := firebaseClient.NewRef("food/state")
