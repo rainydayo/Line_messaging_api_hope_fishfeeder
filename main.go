@@ -11,7 +11,7 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/db"
 
-	"github.com/joho/godotenv"
+	//"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 	"google.golang.org/api/option"
 )
@@ -20,10 +20,10 @@ var firebaseClient *db.Client
 
 func main() {
 	// Load environment variables
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Fatalf("Error loading .env file: %v", err)
+	// }
 
 	// Fetch credentials
 	lineChannelSecret := os.Getenv("LINE_CHANNEL_SECRET")
