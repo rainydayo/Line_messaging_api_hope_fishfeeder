@@ -19,7 +19,7 @@ import (
 var firebaseClient *db.Client
 
 func main() {
-	// Load environment variables
+	//Load environment variables
 	// err := godotenv.Load()
 	// if err != nil {
 	// 	log.Fatalf("Error loading .env file: %v", err)

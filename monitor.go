@@ -42,7 +42,7 @@ func (m *Monitor) StartMonitoring() {
 			time.Sleep(30 * time.Second)
 			continue
 		}
-		// m.checkAndNotify(currentState)
+		m.checkAndNotify(currentState)
 		m.PreviousState = currentState
 		time.Sleep(30 * time.Second)
 	}
